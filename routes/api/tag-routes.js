@@ -9,6 +9,7 @@ router.get('/', async (req, res) => {
   try {
     const tags = await Tag.findAll({
       include: [{ model: Product }],
+      order: [['id', 'ASC']], // Sort by id in ascending order
     })
     res.status(200).json(tags)
   } catch (err) {

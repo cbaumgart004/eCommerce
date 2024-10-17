@@ -82,46 +82,61 @@ router.post('/', async (req, res) => {
 
 // update product
 router.put('/:id', async (req, res) => {
-  // update product data
-  Product.update(req.body, {
-    where: {
-      id: req.params.id,
-    },
-  })
-    .then((product) => {
-      if (req.body.tagIds && req.body.tagIds.length) {
-        ProductTag.findAll({
-          where: { product_id: req.params.id },
-        }).then((productTags) => {
-          // create filtered list of new tag_ids
-          const productTagIds = productTags.map(({ tag_id }) => tag_id)
-          const newProductTags = req.body.tagIds
-            .filter((tag_id) => !productTagIds.includes(tag_id))
-            .map((tag_id) => {
-              return {
-                product_id: req.params.id,
-                tag_id,
-              }
-            })
-
-          // figure out which ones to remove
-          const productTagsToRemove = productTags
-            .filter(({ tag_id }) => !req.body.tagIds.includes(tag_id))
-            .map(({ id }) => id)
-          // run both actions
-          return Promise.all([
-            ProductTag.destroy({ where: { id: productTagsToRemove } }),
-            ProductTag.bulkCreate(newProductTags),
-          ])
-        })
-      }
-
-      return res.json(product)
+  try {
+    // Update the product data
+    const [affectedRows] = await Product.update(req.body, {
+      where: {
+        id: req.params.id,
+      },
     })
-    .catch((err) => {
-      // console.log(err);
-      res.status(400).json(err)
+
+    // If no product was found with the given ID, return a 404 error
+    if (!affectedRows) {
+      return res.status(404).json({ message: 'No product found with this ID!' })
+    }
+
+    // If tagIds are provided in the request, update the associated tags
+    if (req.body.tagIds && req.body.tagIds.length) {
+      // Find all existing tags for this product
+      const productTags = await ProductTag.findAll({
+        where: { product_id: req.params.id },
+      })
+
+      // Get the current tag IDs associated with the product
+      const productTagIds = productTags.map(({ tag_id }) => tag_id)
+
+      // Create a filtered list of new tag IDs to be added
+      const newProductTags = req.body.tagIds
+        .filter((tag_id) => !productTagIds.includes(tag_id))
+        .map((tag_id) => ({
+          product_id: req.params.id,
+          tag_id,
+        }))
+
+      // Identify tags that should be removed
+      const productTagsToRemove = productTags
+        .filter(({ tag_id }) => !req.body.tagIds.includes(tag_id))
+        .map(({ id }) => id)
+
+      // Perform both actions: remove outdated tags and add new ones
+      await Promise.all([
+        ProductTag.destroy({ where: { id: productTagsToRemove } }),
+        ProductTag.bulkCreate(newProductTags),
+      ])
+    }
+
+    // Fetch the updated product along with its associated tags and category
+    const updatedProduct = await Product.findOne({
+      where: { id: req.params.id },
+      include: [{ model: Category }, { model: Tag }],
     })
+
+    // Return the updated product
+    res.status(200).json(updatedProduct)
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Failed to update product', error: err })
+  }
 })
 
 router.delete('/:id', async (req, res) => {

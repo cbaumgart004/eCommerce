@@ -50,22 +50,27 @@ router.post('/', async (req, res) => {
 })
 
 router.put('/:id', async (req, res) => {
-  // update a category by its `id` value
   try {
-    const updatedCategory = await Category.update(
+    // First, update the category by its ID
+    const [affectedRows] = await Category.update(
       { category_name: req.body.category_name },
       { where: { id: req.params.id } }
     )
 
-    if (!updatedCategory[0]) {
+    // If no category was found with the given ID, return a 404 error
+    if (!affectedRows) {
       return res
         .status(404)
-        .json({ message: 'No category found with this id!' })
+        .json({ message: 'No category found with this ID!' })
     }
 
+    // Fetch the updated category from the database
+    const updatedCategory = await Category.findByPk(req.params.id)
+
+    // Return the updated category
     res.status(200).json(updatedCategory)
   } catch (err) {
-    res.status(500).json(err)
+    res.status(500).json({ message: 'Failed to update category', error: err })
   }
 })
 

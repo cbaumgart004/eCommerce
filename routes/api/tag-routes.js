@@ -46,15 +46,25 @@ router.post('/', async (req, res) => {
 })
 
 router.put('/:id', async (req, res) => {
-  // update a tag's name by its `id` value
   try {
-    const updatedTag = await Tag.update(req.body, {
-      where: { id: req.params.id },
-    })
+    // First, update the tag by its ID
+    const [affectedRows] = await Tag.update(
+      { tag_name: req.body.tag_name },
+      { where: { id: req.params.id } }
+    )
 
+    // If no tag was found with the given ID, return a 404 error
+    if (!affectedRows) {
+      return res.status(404).json({ message: 'No tag found with this ID!' })
+    }
+
+    // Fetch the updated tag from the database
+    const updatedTag = await Tag.findByPk(req.params.id)
+
+    // Return the updated tag
     res.status(200).json(updatedTag)
   } catch (err) {
-    res.status(500).json(err)
+    res.status(500).json({ message: 'Failed to update tag', error: err })
   }
 })
 
